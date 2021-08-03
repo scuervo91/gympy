@@ -1,7 +1,7 @@
 import numpy as np
 
 def linear(w,x,b):
-    return np.matmul(x,w) + b
+    return np.matmul(w,x) + b
 
 def sigmoid(x):
     return 1 /( 1 + np.exp(-x))
