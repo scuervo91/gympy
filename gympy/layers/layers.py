@@ -20,6 +20,9 @@ class Layer(BaseModel):
     bias: np.ndarray = Field(None)
     x: np.ndarray = Field(None)
     z: np.ndarray = Field(None)
+    dz: np.ndarray = Field(None)
+    grads_dw: np.ndarray = Field(None)
+    grads_db: np.ndarray = Field(None)
     
     @validator('x','z')
     def parse_values(v):
@@ -28,7 +31,7 @@ class Layer(BaseModel):
     @validator('weights', always=True)
     def wights_shape(v,values):
         if v is None:
-            return np.random.randn(values['n_output'],values['n_input'])
+            return np.random.randn(values['n_output'],values['n_input'])*0.01
         arr = np.array(v, dtype=float)
         assert arr.shape == (values['n_output'],values['n_input'])
         return arr
@@ -36,7 +39,7 @@ class Layer(BaseModel):
     @validator('bias', always=True)
     def bias_shape(v,values):
         if v is None:
-            return np.random.randn(values['n_output'],1)
+            return np.random.randn(values['n_output'],1)*0.01
         arr = np.array(v, dtype=float)
         assert arr.shape == (values['n_output'],1)
         return arr
