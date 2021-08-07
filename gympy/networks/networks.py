@@ -62,7 +62,7 @@ class NeuralNetwork(BaseModel):
         for layer, bias in zip(self.layers,new_bias):
             layer.bias = bias
     
-    def train(self, x, y):
+    def train(self, x, y, show=10):
         n_layers = len(self.layers) + 1
         for i in range(self.n_iter):
                        
@@ -81,6 +81,7 @@ class NeuralNetwork(BaseModel):
             self.layers[-1].grads_db = db
 
             for l in reversed(range(0,n_layers-2)):
+                print(f'layer {l}')
                 #Linear Backward
                 self.layers[l].dz = linear_backward(
                     self.layers[l+1].weights,
@@ -89,6 +90,7 @@ class NeuralNetwork(BaseModel):
                 )
                 #Gradients
                 dw_l,db_l = gradients(self.layers[l].dz,self.cache[l-1])
+                print(dw_l.shape)
                 self.layers[l].grads_dw = dw_l
                 self.layers[l].grads_db = db_l
                 
@@ -98,5 +100,5 @@ class NeuralNetwork(BaseModel):
             self.assing_weights(new_weights)
             self.assing_bias(new_bias)
             
-            if i%100==0:
+            if i%show==0:
                 print(f'{i} cost {cost}')
