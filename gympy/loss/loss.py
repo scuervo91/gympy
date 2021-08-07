@@ -14,15 +14,12 @@ def cross_entropy(AL, Y):
     """
     
     m = Y.shape[1]
-    print(AL.shape)
-    print(Y.shape)
     # Compute loss from aL and y.
     ### START CODE HERE ### (≈ 1 lines of code)
     cost = (-1/m)*(np.matmul(Y,np.log(AL.T)) + np.matmul((1-Y),np.log((1-AL.T))))
     ### END CODE HERE ###
     
     cost = np.squeeze(cost)      # To make sure your cost's shape is what we expect (e.g. this turns [[17]] into 17).
-    print(cost.shape)
     assert(cost.shape == ())
     
     return cost

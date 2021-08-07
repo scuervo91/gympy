@@ -81,7 +81,6 @@ class NeuralNetwork(BaseModel):
             self.layers[-1].grads_db = db
 
             for l in reversed(range(0,n_layers-2)):
-                print(f'layer {l}')
                 #Linear Backward
                 self.layers[l].dz = linear_backward(
                     self.layers[l+1].weights,
@@ -89,8 +88,7 @@ class NeuralNetwork(BaseModel):
                     self.layers[l].derivative()
                 )
                 #Gradients
-                dw_l,db_l = gradients(self.layers[l].dz,self.cache[l-1])
-                print(dw_l.shape)
+                dw_l,db_l = gradients(self.layers[l].dz,self.cache[l])
                 self.layers[l].grads_dw = dw_l
                 self.layers[l].grads_db = db_l
                 
