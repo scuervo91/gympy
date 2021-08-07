@@ -1,8 +1,17 @@
 import numpy as np
 from pydantic import BaseModel, Field, validator
-
+from enum import Enum
 #local imports
-from .functions import linear, relu, sigmoid, softmax, tanh
+from .functions import linear, relu, relu_derivative, sigmoid, sigmoid_derivative, softmax, tanh, tanh_derivative
+
+
+class LayersEnum(str, Enum):
+    linear = 'linear'
+    relu = 'relu'
+    sigmoid = 'sigmoid'
+    tanh = 'tanh'
+    softmax = 'softmax'
+
 
 class Layer(BaseModel):
     n_input: int = Field(..., gt=0)
@@ -44,32 +53,50 @@ class Layer(BaseModel):
         self.x = x
         self.z = z
         return z
+            
     
 class Linear(Layer):
+    type: LayersEnum = Field(LayersEnum.linear, const=True)
     
     def forward(self,x):        
         z = self.linear_forward(x)
         return z
     
+    def derivative(self):
+        return self.z
+    
 class Relu(Layer):
+    type: LayersEnum = Field(LayersEnum.relu, const=True)
     
     def forward(self,x):
         z = self.linear_forward(x)
         return relu(z)
     
+    def derivative(self):
+        return relu_derivative(self.z)
+    
 class Sigmoid(Layer):
+    type: LayersEnum = Field(LayersEnum.sigmoid, const=True)
     
     def forward(self,x):
         z = self.linear_forward(x)
         return sigmoid(z)
+
+    def derivative(self):
+        return sigmoid_derivative(self.z)
     
 class Tanh(Layer):
+    type: LayersEnum = Field(LayersEnum.tanh, const=True)
     
     def forward(self,x):
         z = self.linear_forward(x)
         return tanh(z)
     
+    def derivative(self):
+        return tanh_derivative(self.z)
+    
 class Softmax(Layer):
+    type: LayersEnum = Field(LayersEnum.softmax, const=True)
     
     def forward(self,x):
         z = self.linear_forward(x)
