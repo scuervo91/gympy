@@ -22,4 +22,4 @@ def relu_derivative(x):
     return 1*(x>0)
 
 def softmax(x):
-    return np.exp(x)/np.sum(np.exp(x))
+    return np.exp(x)/np.sum(np.exp(x),axis=0)

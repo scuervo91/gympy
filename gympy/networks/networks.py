@@ -5,10 +5,12 @@ from typing import List, Union, Callable
 # local imports
 from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu
 from ..optimizers import GradientDescent
-from ..loss import cross_entropy
+from ..loss import CategoricalCrossEntropy
 
 layers_types = Union[Linear,Sigmoid, Tanh, Softmax,Relu]
 optimizers_types = Union[GradientDescent]
+
+loss_types = Union[CategoricalCrossEntropy]
 
 def gradients(dz, a):
     m = dz.shape[1]
@@ -24,9 +26,9 @@ class NeuralNetwork(BaseModel):
     layers: List[layers_types] = Field(...)
     cache: List[np.ndarray] = Field(default=None)
     optimizer: optimizers_types = Field(...)
-    cost_function: Callable[[np.ndarray, np.ndarray], np.ndarray] = Field(cross_entropy)
+    loss: loss_types = Field(CategoricalCrossEntropy())
     n_iter: int = Field(default=100)
-    loss: List[float] = Field(None)
+    cost: List[float] = Field(None)
     
     class Config:
         arbitrary_types_allowed = True
@@ -64,13 +66,15 @@ class NeuralNetwork(BaseModel):
     
     def train(self, x, y, show=10):
         n_layers = len(self.layers) + 1
+        cost_list =[]
         for i in range(self.n_iter):
                        
             #Forward
             AL = self.forward(x)
             
             #Cost
-            cost = self.cost_function(AL, y)
+            cost = self.loss(AL, y)
+            cost_list.append(cost)
             
             #first dz
             self.layers[-1].dz = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
@@ -100,3 +104,5 @@ class NeuralNetwork(BaseModel):
             
             if i%show==0:
                 print(f'{i} cost {cost}')
+        
+        self.cost = cost_list

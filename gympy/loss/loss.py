@@ -32,3 +32,11 @@ def log_cost(AL,Y):
     cost = (1/m)*j.flatten().sum()
     
     return cost
+
+class CategoricalCrossEntropy:
+
+    def __call__(self, AL, Y):
+        return np.mean(-np.sum(Y*np.log(AL),axis=0))
+
+
+    
