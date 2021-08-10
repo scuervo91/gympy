@@ -77,7 +77,8 @@ class NeuralNetwork(BaseModel):
             cost_list.append(cost)
             
             #first dz
-            self.layers[-1].dz = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
+            #self.layers[-1].dz = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
+            self.layers[-1].dz = AL - y
             
             #First grad
             dw, db = gradients(self.layers[-1].dz, self.cache[-2])

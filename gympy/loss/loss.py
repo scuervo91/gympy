@@ -33,6 +33,12 @@ def log_cost(AL,Y):
     
     return cost
 
+
+class LogisticLoss:
+    def __call__(self, AL, Y):
+        m = Y.shape[1]       
+        return (-1/m)*((np.matmul(Y,np.log(AL.T)) + np.matmul((1-Y),np.log((1-AL.T)))))
+
 class CategoricalCrossEntropy:
 
     def __call__(self, AL, Y):
