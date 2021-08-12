@@ -29,6 +29,8 @@ class NeuralNetwork(BaseModel):
     loss: loss_types = Field(CategoricalCrossEntropy())
     n_iter: int = Field(default=100)
     cost: List[float] = Field(None)
+    batch_size: int = Field(None, gt=0)
+    seed: int = Field(None, gt=0)
     
     class Config:
         arbitrary_types_allowed = True
@@ -64,10 +66,14 @@ class NeuralNetwork(BaseModel):
         for layer, bias in zip(self.layers,new_bias):
             layer.bias = bias
     
+    def get_batch(self):
+        if self.batch_size is None:
+            
+    
     def train(self, x, y, show=10):
         n_layers = len(self.layers) + 1
         cost_list =[]
-        for i in range(self.n_iter):
+        for epoch in range(self.n_iter):
                        
             #Forward
             AL = self.forward(x)
@@ -103,7 +109,7 @@ class NeuralNetwork(BaseModel):
             self.assing_weights(new_weights)
             self.assing_bias(new_bias)
             
-            if i%show==0:
-                print(f'{i} cost {cost}')
+            if epoch%show==0:
+                print(f'{epoch} cost {cost}')
         
         self.cost = cost_list
