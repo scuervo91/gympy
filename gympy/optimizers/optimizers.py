@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 class GradientDescent(BaseModel):
     learning_rate: float = 1e-3
+    learning_rate_decay: float = 0
     def update(self, weigths, grads):
         params_list =[]
         for w, g in zip(weigths, grads):
