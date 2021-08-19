@@ -23,6 +23,8 @@ class Layer(BaseModel):
     dz: np.ndarray = Field(None)
     grads_dw: np.ndarray = Field(None)
     grads_db: np.ndarray = Field(None)
+    dropout_rate: float = Field(0, ge=0, lt=1)
+    dropout_cache: np.ndarray = Field(None)
     
     @validator('x','z')
     def parse_values(v):
@@ -56,7 +58,14 @@ class Layer(BaseModel):
         self.x = x
         self.z = z
         return z
-            
+    
+    def regularization_loss(self,lambd):
+        return lambd * np.sum(np.square(self.weights))
+    
+    def dropout_array(self):
+        dp_rate = 1 - self.dropout_rate
+        size_output = self.n_output
+        return np.random.binomial(1,dp_rate,(size_output,1)) / dp_rate
     
 class Linear(Layer):
     type: LayersEnum = Field(LayersEnum.linear, const=True)

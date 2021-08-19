@@ -27,10 +27,10 @@ class NeuralNetwork(BaseModel):
     cache: List[np.ndarray] = Field(default=None)
     optimizer: optimizers_types = Field(...)
     loss: loss_types = Field(CategoricalCrossEntropy())
-    n_iter: int = Field(default=100)
     cost: List[float] = Field(None)
     batch_size: int = Field(None, gt=0)
     seed: int = Field(None, gt=0)
+    lambd: float = Field(0.0)
     
     class Config:
         arbitrary_types_allowed = True
@@ -40,8 +40,16 @@ class NeuralNetwork(BaseModel):
         A = x
         cache_list = []
         cache_list.append(x)
-        for layer in self.layers:
+        for i,layer in enumerate(self.layers):
             A = layer.forward(A)
+            
+            #Apply dropout
+            if layer.dropout_rate > 0:
+                dropout_array = layer.dropout_array()
+                A *= dropout_array
+                layer.dropout_cache = dropout_array
+                
+            #Append to cache list
             cache_list.append(A)
         self.cache = cache_list
         return A
@@ -65,21 +73,31 @@ class NeuralNetwork(BaseModel):
     def assing_bias(self,new_bias):
         for layer, bias in zip(self.layers,new_bias):
             layer.bias = bias
+            
+    def get_regularization_loss(self):
+        if self.lambd > 0.0:
+            reg_cost = 0
+            lambd = self.lambd
+            for layer in self.layers:
+                reg_cost += layer.regularization_loss(lambd)
+            return reg_cost
+        else:
+            return 0.
     
-    def get_batch(self):
-        if self.batch_size is None:
+    # def get_batch(self):
+    #     if self.batch_size is None:
             
     
-    def train(self, x, y, show=10):
+    def train(self, x, y, show=10, n_iter=100):
         n_layers = len(self.layers) + 1
         cost_list =[]
-        for epoch in range(self.n_iter):
+        for epoch in range(n_iter):
                        
             #Forward
             AL = self.forward(x)
             
             #Cost
-            cost = self.loss(AL, y)
+            cost = self.loss(AL, y) + self.get_regularization_loss()
             cost_list.append(cost)
             
             #first dz
@@ -88,9 +106,16 @@ class NeuralNetwork(BaseModel):
             
             #First grad
             dw, db = gradients(self.layers[-1].dz, self.cache[-2])
+            
+            # L2 Regularization
+            if self.lambd > 0:
+                dw += 2*self.lambd*self.layers[-1].weights
+            
+            #Save Gradients
             self.layers[-1].grads_dw = dw
             self.layers[-1].grads_db = db
 
+            #For loop for layers
             for l in reversed(range(0,n_layers-2)):
                 #Linear Backward
                 self.layers[l].dz = linear_backward(
@@ -100,6 +125,12 @@ class NeuralNetwork(BaseModel):
                 )
                 #Gradients
                 dw_l,db_l = gradients(self.layers[l].dz,self.cache[l])
+                if self.layers[l].dropout_rate > 0:
+                    dw_l *= self.layers[l].dropout_cache
+                
+                #L2 Regularization
+                if self.lambd > 0:
+                    dw_l += 2*self.lambd*self.layers[l].weights
                 self.layers[l].grads_dw = dw_l
                 self.layers[l].grads_db = db_l
                 

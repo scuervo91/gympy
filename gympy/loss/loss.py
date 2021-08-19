@@ -40,7 +40,6 @@ class LogisticLoss:
         return (-1/m)*((np.matmul(Y,np.log(AL.T)) + np.matmul((1-Y),np.log((1-AL.T)))))
 
 class CategoricalCrossEntropy:
-
     def __call__(self, AL, Y):
         return np.mean(-np.sum(Y*np.log(AL),axis=0))
 
