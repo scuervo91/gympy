@@ -22,6 +22,29 @@ def gradients(dz, a):
 def linear_backward(w, dz, dev_z):
     return np.dot(w.T, dz) * dev_z
 
+class DataSet(BaseModel):
+    x: np.ndarray = Field(None)
+    y: np.ndarray = Field(None)
+    batch_size: int = Field(None,gt=0)
+    shuffle_index: List[np.ndarray] = Field(None)
+    seed: int = Field(np.random.randint(1000), gt=0)
+    
+    class Config:
+        arbitrary_types_allowed = True
+        validate_assignment = True
+        
+    def get_shuffle_index(self):
+        
+        m = self.x.shape[1]
+        shuffle_index = np.random.RandomState(self.seed).permutation(m)
+        
+        if self.batch_size:
+            n_batches = m // self.batch_size
+        else:
+            n_batches = 1
+        self.shuffle_index = np.array_split(shuffle_index, n_batches)
+        
+
 class NeuralNetwork(BaseModel):
     layers: List[layers_types] = Field(...)
     cache: List[np.ndarray] = Field(default=None)
@@ -88,10 +111,10 @@ class NeuralNetwork(BaseModel):
         return self.loss.forward(y_hat, y) + self.get_regularization_loss()
             
     
-    def train(self, x, y, show=10, n_iter=100):
+    def train(self, x, y, show=10, n_epochs=100):
         n_layers = len(self.layers) + 1
         cost_list =[]
-        for epoch in range(n_iter):
+        for epoch in range(n_epochs):
                        
             #Forward
             AL = self.forward(x)
@@ -140,6 +163,69 @@ class NeuralNetwork(BaseModel):
             new_bias = self.optimizer.update(self.get_bias(),self.get_grads_db())
             self.assing_weights(new_weights)
             self.assing_bias(new_bias)
+            
+            if epoch%show==0:
+                print(f'{epoch} cost {cost}')
+        
+        self.cost = cost_list
+        
+    def train_dataset(self, dataset:DataSet, show=10, n_epochs=50):
+        n_layers = len(self.layers) + 1
+        cost_list =[]
+        dataset.get_shuffle_index()
+        for epoch in range(n_epochs):
+            
+            for batch in dataset.shuffle_index:
+                x = dataset.x[:,batch]
+                y = dataset.y[:,batch]
+  
+                #Forward
+                AL = self.forward(x)
+            
+                #Cost
+                cost = self.get_cost(AL,y)
+                cost_list.append(cost)
+            
+                #first dz
+                #self.layers[-1].dz = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
+                self.layers[-1].dz = AL - y
+                #self.layers[-1].dz = self.loss.backward(AL,y) * self.layers[-1].derivative()
+                
+                #First grad
+                dw, db = gradients(self.layers[-1].dz, self.cache[-2])
+                
+                # L2 Regularization
+                if self.lambd > 0:
+                    dw = dw + 2*self.lambd*self.layers[-1].weights
+                
+                #Save Gradients
+                self.layers[-1].dw = dw
+                self.layers[-1].db = db
+
+                #For loop for layers
+                for l in reversed(range(0,n_layers-2)):
+                    #Linear Backward
+                    self.layers[l].dz = linear_backward(
+                        self.layers[l+1].weights,
+                        self.layers[l+1].dz,
+                        self.layers[l].derivative()
+                    )
+                    #Gradients
+                    dw_l,db_l = gradients(self.layers[l].dz,self.cache[l])
+                    if self.layers[l].dropout_rate > 0:
+                        dw_l = dw_l *self.layers[l].dropout_cache
+                    
+                    #L2 Regularization
+                    if self.lambd > 0:
+                        dw_l = dw_l + 2*self.lambd*self.layers[l].weights
+                    self.layers[l].dw = dw_l
+                    self.layers[l].db = db_l
+                
+                #Get new Weights
+                new_weights = self.optimizer.update(self.get_weigths(),self.get_grads_dw())
+                new_bias = self.optimizer.update(self.get_bias(),self.get_grads_db())
+                self.assing_weights(new_weights)
+                self.assing_bias(new_bias)
             
             if epoch%show==0:
                 print(f'{epoch} cost {cost}')
