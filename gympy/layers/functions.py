@@ -29,4 +29,3 @@ relu_derivative = egrad(relu)
 def softmax(x):
     return np.exp(x)/np.sum(np.exp(x),axis=0)
 
-softmax_derivative = egrad(softmax)

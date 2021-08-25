@@ -5,7 +5,7 @@ from autograd import elementwise_grad as egrad
 # local imports
 from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu
 from ..optimizers import GradientDescent
-from ..loss import CategoricalCrossEntropy
+from ..loss import CategoricalCrossEntropy, LogisticLoss
 
 layers_types = Union[Linear,Sigmoid, Tanh, Softmax,Relu]
 optimizers_types = Union[GradientDescent]
@@ -46,7 +46,7 @@ class NeuralNetwork(BaseModel):
             #Apply dropout
             if layer.dropout_rate > 0:
                 dropout_array = layer.dropout_array()
-                A *= dropout_array
+                A = A * dropout_array
                 layer.dropout_cache = dropout_array
                 
             #Append to cache list
@@ -79,43 +79,38 @@ class NeuralNetwork(BaseModel):
             reg_cost = 0
             lambd = self.lambd
             for layer in self.layers:
-                reg_cost += layer.regularization_loss(lambd)
+                reg_cost = reg_cost + layer.regularization_loss(lambd)
             return reg_cost
         else:
             return 0.
     
-    def get_cost(self, y_hat, y):
-        return self.loss(y_hat, y) + self.get_regularization_loss()
+    def get_cost(self, y_hat,y):
+        return self.loss.forward(y_hat, y) + self.get_regularization_loss()
             
     
     def train(self, x, y, show=10, n_iter=100):
         n_layers = len(self.layers) + 1
         cost_list =[]
-        cost_grad = egrad(self.get_cost,0)
         for epoch in range(n_iter):
                        
             #Forward
             AL = self.forward(x)
             
             #Cost
-            cost = self.get_cost(AL, y)
+            cost = self.get_cost(AL,y)
             cost_list.append(cost)
             
             #first dz
             #self.layers[-1].dz = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
             self.layers[-1].dz = AL - y
+            #self.layers[-1].dz = self.loss.backward(AL,y) * self.layers[-1].derivative()
             
-            ### check
-            dldz = cost_grad(AL, y)*self.layers[-1].derivative()
-            print(self.layers[-1].dz - dldz)
-            ######
-
             #First grad
             dw, db = gradients(self.layers[-1].dz, self.cache[-2])
             
             # L2 Regularization
             if self.lambd > 0:
-                dw += 2*self.lambd*self.layers[-1].weights
+                dw = dw + 2*self.lambd*self.layers[-1].weights
             
             #Save Gradients
             self.layers[-1].dw = dw
@@ -132,11 +127,11 @@ class NeuralNetwork(BaseModel):
                 #Gradients
                 dw_l,db_l = gradients(self.layers[l].dz,self.cache[l])
                 if self.layers[l].dropout_rate > 0:
-                    dw_l *= self.layers[l].dropout_cache
+                    dw_l = dw_l *self.layers[l].dropout_cache
                 
                 #L2 Regularization
                 if self.lambd > 0:
-                    dw_l += 2*self.lambd*self.layers[l].weights
+                    dw_l = dw_l + 2*self.lambd*self.layers[l].weights
                 self.layers[l].dw = dw_l
                 self.layers[l].db = db_l
                 

@@ -1,47 +1,29 @@
+from typing import Callable
 import autograd.numpy as np
+from pydantic import BaseModel, Field
+from autograd import elementwise_grad as egrad
 
 
-def cross_entropy(AL, Y):
-    """
-    Implement the cost function defined by equation (7).
+def categorical_cross_entropy(AL,Y): 
+    return np.mean(-np.sum(Y*np.log(AL),axis=0))
 
-    Arguments:
-    AL -- probability vector corresponding to your label predictions, shape (1, number of examples)
-    Y -- true "label" vector (for example: containing 0 if non-cat, 1 if cat), shape (1, number of examples)
+categorical_cross_entropy_grad = egrad(categorical_cross_entropy,0)
 
-    Returns:
-    cost -- cross-entropy cost
-    """
-    
+def logistic_loss(AL,Y):
     m = Y.shape[1]
-    # Compute loss from aL and y.
-    ### START CODE HERE ### (≈ 1 lines of code)
-    cost = (-1/m)*(np.matmul(Y,np.log(AL.T)) + np.matmul((1-Y),np.log((1-AL.T))))
-    ### END CODE HERE ###
+    return ((np.matmul(Y,np.log(AL.T)) + np.matmul((1-Y),np.log((1-AL.T)))))*(-1/m)
+
+logistic_loss_grad = egrad(logistic_loss,0)
+
+class LogisticLoss(BaseModel):
+    forward: Callable[...,np.ndarray] = Field(logistic_loss,const=True) 
+    backward: Callable[...,np.ndarray] = Field(logistic_loss_grad,const=True) 
     
-    cost = np.squeeze(cost)      # To make sure your cost's shape is what we expect (e.g. this turns [[17]] into 17).
-    assert(cost.shape == ())
     
-    return cost
+class CategoricalCrossEntropy(BaseModel):
+    forward: Callable[...,np.ndarray] = Field(categorical_cross_entropy,const=True) 
+    backward: Callable[...,np.ndarray] = Field(categorical_cross_entropy_grad,const=True) 
 
-
-def log_cost(AL,Y):
-    m = Y.shape[1]
-    
-    j = (-Y * np.log(AL)) - ((1-Y)*np.log(1-AL))
-    cost = (1/m)*j.flatten().sum()
-    
-    return cost
-
-
-class LogisticLoss:
-    def __call__(self, AL, Y):
-        m = Y.shape[1]       
-        return (-1/m)*((np.matmul(Y,np.log(AL.T)) + np.matmul((1-Y),np.log((1-AL.T)))))
-
-class CategoricalCrossEntropy:
-    def __call__(self, AL, Y):
-        return np.mean(-np.sum(Y*np.log(AL),axis=0))
 
 
     

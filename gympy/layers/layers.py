@@ -2,7 +2,7 @@ import numpy as np
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 #local imports
-from .functions import linear, relu, relu_derivative, sigmoid, sigmoid_derivative, softmax, tanh, tanh_derivative, softmax_derivative
+from .functions import linear, relu, relu_derivative, sigmoid, sigmoid_derivative, softmax, tanh, tanh_derivative
 
 
 class LayersEnum(str, Enum):
