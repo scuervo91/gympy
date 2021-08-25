@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
-import numpy as np
+import autograd.numpy as np
 from typing import List, Union, Callable
-
+from autograd import elementwise_grad as egrad
 # local imports
 from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu
 from ..optimizers import GradientDescent
@@ -61,10 +61,10 @@ class NeuralNetwork(BaseModel):
         return [layer.bias for layer in self.layers]
     
     def get_grads_dw(self):
-        return [layer.grads_dw for layer in self.layers]
+        return [layer.dw for layer in self.layers]
 
     def get_grads_db(self):
-        return [layer.grads_db for layer in self.layers]
+        return [layer.db for layer in self.layers]
     
     def assing_weights(self,new_weights):
         for layer, weights in zip(self.layers,new_weights):
@@ -84,26 +84,32 @@ class NeuralNetwork(BaseModel):
         else:
             return 0.
     
-    # def get_batch(self):
-    #     if self.batch_size is None:
+    def get_cost(self, y_hat, y):
+        return self.loss(y_hat, y) + self.get_regularization_loss()
             
     
     def train(self, x, y, show=10, n_iter=100):
         n_layers = len(self.layers) + 1
         cost_list =[]
+        cost_grad = egrad(self.get_cost,0)
         for epoch in range(n_iter):
                        
             #Forward
             AL = self.forward(x)
             
             #Cost
-            cost = self.loss(AL, y) + self.get_regularization_loss()
+            cost = self.get_cost(AL, y)
             cost_list.append(cost)
             
             #first dz
             #self.layers[-1].dz = - (np.divide(y, AL) - np.divide(1 - y, 1 - AL))
             self.layers[-1].dz = AL - y
             
+            ### check
+            dldz = cost_grad(AL, y)*self.layers[-1].derivative()
+            print(self.layers[-1].dz - dldz)
+            ######
+
             #First grad
             dw, db = gradients(self.layers[-1].dz, self.cache[-2])
             
@@ -112,8 +118,8 @@ class NeuralNetwork(BaseModel):
                 dw += 2*self.lambd*self.layers[-1].weights
             
             #Save Gradients
-            self.layers[-1].grads_dw = dw
-            self.layers[-1].grads_db = db
+            self.layers[-1].dw = dw
+            self.layers[-1].db = db
 
             #For loop for layers
             for l in reversed(range(0,n_layers-2)):
@@ -131,8 +137,8 @@ class NeuralNetwork(BaseModel):
                 #L2 Regularization
                 if self.lambd > 0:
                     dw_l += 2*self.lambd*self.layers[l].weights
-                self.layers[l].grads_dw = dw_l
-                self.layers[l].grads_db = db_l
+                self.layers[l].dw = dw_l
+                self.layers[l].db = db_l
                 
             #Get new Weights
             new_weights = self.optimizer.update(self.get_weigths(),self.get_grads_dw())

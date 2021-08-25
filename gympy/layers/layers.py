@@ -2,7 +2,7 @@ import numpy as np
 from pydantic import BaseModel, Field, validator
 from enum import Enum
 #local imports
-from .functions import linear, relu, relu_derivative, sigmoid, sigmoid_derivative, softmax, tanh, tanh_derivative
+from .functions import linear, relu, relu_derivative, sigmoid, sigmoid_derivative, softmax, tanh, tanh_derivative, softmax_derivative
 
 
 class LayersEnum(str, Enum):
@@ -21,8 +21,8 @@ class Layer(BaseModel):
     x: np.ndarray = Field(None)
     z: np.ndarray = Field(None)
     dz: np.ndarray = Field(None)
-    grads_dw: np.ndarray = Field(None)
-    grads_db: np.ndarray = Field(None)
+    dw: np.ndarray = Field(None)
+    db: np.ndarray = Field(None)
     dropout_rate: float = Field(0, ge=0, lt=1)
     dropout_cache: np.ndarray = Field(None)
     
@@ -113,6 +113,9 @@ class Softmax(Layer):
     def forward(self,x):
         z = self.linear_forward(x)
         return softmax(z)
+    
+    def derivative(self):
+        return softmax_derivative(self.z)
     
 
     
