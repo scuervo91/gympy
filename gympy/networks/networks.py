@@ -176,6 +176,7 @@ class NeuralNetwork(BaseModel):
         cost_list =[]
         dataset.get_shuffle_index()
         self.optimizer.init_vd(self.get_weigths(), self.get_bias())
+        print(type(self.optimizer))
         c = 1
         for epoch in range(n_epochs):
             
@@ -228,11 +229,11 @@ class NeuralNetwork(BaseModel):
                 
                 #Get new Weights
                 new_weights, new_bias = self.optimizer.update(self.get_weigths(),self.get_grads_dw(),self.get_bias(),self.get_grads_db(),c)
-                c += 1
                 self.assing_weights(new_weights)
                 self.assing_bias(new_bias)
+                c += 1
             
             if epoch%show==0:
-                print(f'{epoch} cost {cost}')
+                print(f'{epoch} cost {cost} iter {c}')
         
         self.cost = cost_list

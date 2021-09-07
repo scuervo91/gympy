@@ -108,8 +108,8 @@ class Adam(BaseModel):
     sdw: List[np.ndarray] = Field(None)
     sdb: List[np.ndarray] = Field(None)
     beta1: float = Field(0.9)
-    beta2: float = Field(0.999)
-    epsilon: float = Field(1e-7)
+    beta2: float = Field(0.99)
+    epsilon: float = Field(1e-8)
     class Config:
         extra = "forbid"
         arbitrary_types_allowed = True
@@ -128,10 +128,11 @@ class Adam(BaseModel):
             new_sdw_corr = new_sdw/(1-np.power(beta2,t))
             
             #update
-            params_w = w - self.learning_rate * (new_vdw_corr/(np.sqrt(new_sdw_corr)+self.epsilon))
+            params_w = w - (self.learning_rate * (new_vdw_corr/(np.sqrt(new_sdw_corr)+self.epsilon)))
             w_list.append(params_w)
             self.sdw[i] = new_sdw_corr
             self.vdw[i] = new_vdw_corr
+               
             
         b_list =[]
         for i, (vdb,sdb,b, gb) in enumerate(zip(self.vdb,self.sdb,bias, bias_grads)):
@@ -144,7 +145,7 @@ class Adam(BaseModel):
             new_sdb_corr = new_sdb/(1-np.power(beta2,t))
             
             #update
-            params_b = b - self.learning_rate * (new_vdb_corr/(np.sqrt(new_sdb_corr)+self.epsilon))
+            params_b = b - (self.learning_rate * (new_vdb_corr/(np.sqrt(new_sdb_corr)+self.epsilon)))
             b_list.append(params_b)
             self.sdb[i] = new_sdb_corr
             self.vdb[i] = new_vdb_corr

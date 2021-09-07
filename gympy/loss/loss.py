@@ -15,6 +15,11 @@ def logistic_loss(AL,Y):
 
 logistic_loss_grad = egrad(logistic_loss,0)
 
+def accuracy(AL,Y):
+    return np.mean(np.argmax(AL,axis=0) == np.argmax(Y,axis=0))
+
+accuracy_loss_grad = egrad(accuracy,0)
+
 class LogisticLoss(BaseModel):
     forward: Callable[...,np.ndarray] = Field(logistic_loss,const=True) 
     backward: Callable[...,np.ndarray] = Field(logistic_loss_grad,const=True) 
@@ -25,5 +30,7 @@ class CategoricalCrossEntropy(BaseModel):
     backward: Callable[...,np.ndarray] = Field(categorical_cross_entropy_grad,const=True) 
 
 
-
+class Accuracy(BaseModel):
+    forward: Callable[...,np.ndarray] = Field(accuracy,const=True) 
+    backward: Callable[...,np.ndarray] = Field(accuracy_loss_grad,const=True)
     
