@@ -1,1 +1,1 @@
-from .optimizers import GradientDescent
+from .optimizers import SGD, SGDMomentum, RMSprop, Adam

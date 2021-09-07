@@ -4,11 +4,11 @@ from typing import List, Union, Callable
 from autograd import elementwise_grad as egrad
 # local imports
 from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu
-from ..optimizers import GradientDescent
+from ..optimizers import SGD, SGDMomentum, RMSprop, Adam
 from ..loss import CategoricalCrossEntropy, LogisticLoss
 
 layers_types = Union[Linear,Sigmoid, Tanh, Softmax,Relu]
-optimizers_types = Union[GradientDescent]
+optimizers_types = Union[SGD, SGDMomentum, RMSprop, Adam]
 
 loss_types = Union[CategoricalCrossEntropy]
 
@@ -114,6 +114,8 @@ class NeuralNetwork(BaseModel):
     def train(self, x, y, show=10, n_epochs=100):
         n_layers = len(self.layers) + 1
         cost_list =[]
+        self.optimizer.init_vd(self.get_weigths(), self.get_bias())
+        c = 1
         for epoch in range(n_epochs):
                        
             #Forward
@@ -159,8 +161,8 @@ class NeuralNetwork(BaseModel):
                 self.layers[l].db = db_l
                 
             #Get new Weights
-            new_weights = self.optimizer.update(self.get_weigths(),self.get_grads_dw())
-            new_bias = self.optimizer.update(self.get_bias(),self.get_grads_db())
+            new_weights, new_bias = self.optimizer.update(self.get_weigths(),self.get_grads_dw(),self.get_bias(),self.get_grads_db(),c)
+            c += 1
             self.assing_weights(new_weights)
             self.assing_bias(new_bias)
             
@@ -173,9 +175,12 @@ class NeuralNetwork(BaseModel):
         n_layers = len(self.layers) + 1
         cost_list =[]
         dataset.get_shuffle_index()
+        self.optimizer.init_vd(self.get_weigths(), self.get_bias())
+        c = 1
         for epoch in range(n_epochs):
             
             for batch in dataset.shuffle_index:
+                
                 x = dataset.x[:,batch]
                 y = dataset.y[:,batch]
   
@@ -222,8 +227,8 @@ class NeuralNetwork(BaseModel):
                     self.layers[l].db = db_l
                 
                 #Get new Weights
-                new_weights = self.optimizer.update(self.get_weigths(),self.get_grads_dw())
-                new_bias = self.optimizer.update(self.get_bias(),self.get_grads_db())
+                new_weights, new_bias = self.optimizer.update(self.get_weigths(),self.get_grads_dw(),self.get_bias(),self.get_grads_db(),c)
+                c += 1
                 self.assing_weights(new_weights)
                 self.assing_bias(new_bias)
             
