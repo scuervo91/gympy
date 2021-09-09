@@ -1,1 +1,1 @@
-from .loss import CategoricalCrossEntropy, LogisticLoss, Accuracy
+from .loss import CategoricalCrossEntropy, LogisticLoss, Accuracy, MeanSquaredError

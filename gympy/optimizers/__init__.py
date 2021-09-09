@@ -1,1 +1,1 @@
-from .optimizers import SGD, SGDMomentum, RMSprop, Adam
+from .optimizers import SGD, SGDMomentum, RMSprop, Adam, TimeDecay,ExponentialDecay

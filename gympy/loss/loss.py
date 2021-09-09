@@ -7,7 +7,11 @@ from autograd import elementwise_grad as egrad
 def categorical_cross_entropy(AL,Y): 
     return np.mean(-np.sum(Y*np.log(AL),axis=0))
 
-categorical_cross_entropy_grad = egrad(categorical_cross_entropy,0)
+#categorical_cross_entropy_grad = egrad(categorical_cross_entropy,0)
+
+def categorical_cross_entropy_grad(AL,Y):
+    return AL-Y
+
 
 def logistic_loss(AL,Y):
     m = Y.shape[1]
@@ -33,4 +37,8 @@ class CategoricalCrossEntropy(BaseModel):
 class Accuracy(BaseModel):
     forward: Callable[...,np.ndarray] = Field(accuracy,const=True) 
     backward: Callable[...,np.ndarray] = Field(accuracy_loss_grad,const=True)
-    
+
+
+class MeanSquaredError(BaseModel):
+    forward: Callable[...,np.ndarray] = Field(lambda AL,Y: np.mean((AL-Y)**2),const=True) 
+    backward: Callable[...,np.ndarray] = Field(lambda AL,Y: 2*(AL-Y),const=True)

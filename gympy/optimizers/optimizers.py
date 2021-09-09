@@ -1,23 +1,39 @@
 import autograd.numpy as np
-from typing import List
+from typing import List, Union
 from pydantic import BaseModel, Field
+
+
+class LearningDecayModel(BaseModel):
+    rate: float = Field(0.0)
+    
+class TimeDecay(LearningDecayModel):
+    
+    def forward(self, lr:float,epoch:int):
+        return (1/(1+self.rate*epoch))*lr
+    
+class ExponentialDecay(LearningDecayModel):
+    def forward(self, lr:float,epoch:int):
+        return lr*np.exp(-self.rate*epoch)
+
+    
 
 class SGD(BaseModel):
     learning_rate: float = Field(1e-3)
-    
+    decay: Union[TimeDecay, ExponentialDecay] = Field(TimeDecay())
     class Config:
         extra = "forbid"
         arbitrary_types_allowed = True
         
-    def update(self, weigths, wgrads, bias, bias_grads,t):
+    def update(self, weigths, wgrads, bias, bias_grads,t,epoch):
         w_list =[]
+        alpha = self.decay.forward(self.learning_rate,epoch)
         for w, g in zip(weigths, wgrads):
-            params_w = w - self.learning_rate * g
+            params_w = w - alpha * g
             w_list.append(params_w)
             
         b_list =[]
         for b, gb in zip(bias, bias_grads):
-            params_b = b - self.learning_rate * gb
+            params_b = b - alpha * gb
             w_list.append(params_b)
         return w_list, b_list
     
@@ -29,23 +45,25 @@ class SGDMomentum(BaseModel):
     vdw: List[np.ndarray] = Field(None)
     vdb: List[np.ndarray] = Field(None)
     momentum: float = Field(0.9)
+    decay: Union[TimeDecay, ExponentialDecay] = Field(TimeDecay())
     class Config:
         extra = "forbid"
         arbitrary_types_allowed = True
         
-    def update(self, weigths, wgrads, bias, bias_grads,t):
+    def update(self, weigths, wgrads, bias, bias_grads,t,epoch):
         w_list =[]
         beta = self.momentum
+        alpha = self.decay.forward(self.learning_rate,epoch)
         for i, (vdw,w, gw) in enumerate(zip(self.vdw,weigths, wgrads)):
             new_vdw = beta * vdw + (1-beta)*gw
-            params_w = w - self.learning_rate * new_vdw
+            params_w = w - alpha * new_vdw
             w_list.append(params_w)
             self.vdw[i] = new_vdw
             
         b_list =[]
         for i,(vdb,b, gb) in enumerate(zip(self.vdb,bias, bias_grads)):
             new_vdb = beta * vdb + (1-beta)*gb
-            params_b = b - self.learning_rate * new_vdb
+            params_b = b - alpha * new_vdb
             b_list.append(params_b)
             self.vdb[i] = new_vdb
         return w_list, b_list
@@ -68,23 +86,25 @@ class RMSprop(BaseModel):
     sdb: List[np.ndarray] = Field(None)
     momentum: float = Field(0.9)
     epsilon: float = Field(1e-7)
+    decay: Union[TimeDecay, ExponentialDecay] = Field(TimeDecay())
     class Config:
         extra = "forbid"
         arbitrary_types_allowed = True
         
-    def update(self, weigths, wgrads, bias, bias_grads,t):
+    def update(self, weigths, wgrads, bias, bias_grads,t,epoch):
         w_list =[]
         beta = self.momentum
+        alpha = self.decay.forward(self.learning_rate,epoch)
         for i, (sdw,w, gw) in enumerate(zip(self.sdw,weigths, wgrads)):
             new_sdw = beta * sdw + (1-beta)*np.square(gw)
-            params_w = w - self.learning_rate * (gw/(np.sqrt(new_sdw)+self.epsilon))
+            params_w = w - alpha * (gw/(np.sqrt(new_sdw)+self.epsilon))
             w_list.append(params_w)
             self.sdw[i] = new_sdw
             
         b_list =[]
         for i,(sdb,b, gb) in enumerate(zip(self.sdb,bias, bias_grads)):
             new_sdb = beta * sdb + (1-beta)*np.square(gb)
-            params_b = b - self.learning_rate * (gb/(np.sqrt(new_sdb)+self.epsilon))
+            params_b = b - alpha * (gb/(np.sqrt(new_sdb)+self.epsilon))
             b_list.append(params_b)
             self.sdb[i] = new_sdb
         return w_list, b_list
@@ -110,14 +130,16 @@ class Adam(BaseModel):
     beta1: float = Field(0.9)
     beta2: float = Field(0.99)
     epsilon: float = Field(1e-8)
+    decay: Union[TimeDecay, ExponentialDecay] = Field(TimeDecay())
     class Config:
         extra = "forbid"
         arbitrary_types_allowed = True
         
-    def update(self, weigths, wgrads, bias, bias_grads,t):
+    def update(self, weigths, wgrads, bias, bias_grads,t,epoch):
         w_list =[]
         beta1 = self.beta1
         beta2 = self.beta2
+        alpha = self.decay.forward(self.learning_rate,epoch)
         for i, (vdw,sdw,w, gw) in enumerate(zip(self.vdw,self.sdw,weigths, wgrads)):
             #Momentumn
             new_vdw = beta1 * vdw + (1-beta1)*gw
@@ -128,7 +150,7 @@ class Adam(BaseModel):
             new_sdw_corr = new_sdw/(1-np.power(beta2,t))
             
             #update
-            params_w = w - (self.learning_rate * (new_vdw_corr/(np.sqrt(new_sdw_corr)+self.epsilon)))
+            params_w = w - (alpha * (new_vdw_corr/(np.sqrt(new_sdw_corr)+self.epsilon)))
             w_list.append(params_w)
             self.sdw[i] = new_sdw_corr
             self.vdw[i] = new_vdw_corr
@@ -145,7 +167,7 @@ class Adam(BaseModel):
             new_sdb_corr = new_sdb/(1-np.power(beta2,t))
             
             #update
-            params_b = b - (self.learning_rate * (new_vdb_corr/(np.sqrt(new_sdb_corr)+self.epsilon)))
+            params_b = b - (alpha * (new_vdb_corr/(np.sqrt(new_sdb_corr)+self.epsilon)))
             b_list.append(params_b)
             self.sdb[i] = new_sdb_corr
             self.vdb[i] = new_vdb_corr
