@@ -1,6 +1,7 @@
 import numpy as np
 from pydantic import BaseModel, Field, validator
 from enum import Enum
+from typing import Union, Callable
 #local imports
 from .functions import linear, relu, relu_derivative, sigmoid, sigmoid_derivative, softmax, tanh, tanh_derivative
 
@@ -113,10 +114,45 @@ class Softmax(Layer):
     def forward(self,x):
         z = self.linear_forward(x)
         return softmax(z)
+
+
+layers_types = Union[Linear,Sigmoid, Tanh, Softmax,Relu]
+
+class RNN(BaseModel):
+    n_input: int = Field(..., gt=0)
+    n_output: int = Field(..., gt=0)
+    n_hidden: int = Field(..., gt=0)
     
-    def derivative(self):
-        return softmax_derivative(self.z)
+    #for layer_y: n_output=self.n_output,n_input=self.n_hidden
+    layer_y: layers_types = Field(...)
     
+    #for layer_a: n_output=self.n_hidden,n_input=self.n_input + self.n_hidden
+    layer_a: layers_types = Field(...)
+
+    @validator('layer_y', always=True)
+    def layer_y(v,values):
+        assert v.n_input == values['n_hidden']
+        assert v.n_output == values['n_output']
+        
+    @validator('layer_a', always=True)
+    def layer_y(v,values):
+        assert v.n_input == values['n_input'] + values['n_hidden']
+        assert v.n_output == values['n_hidden']
+    
+    class Config:
+        arbitrary_types_allowed = True
+        validate_assignment = True
+        
+    def forward(self,x):
+        a = np.zeros((self.n_hidden,1))
+        
+        for t in range(x.shape[1]):
+            x_new_shape = np.expand_dims(x[:,t],axis=1)
+            x_wa = np.concatenate([a,x_new_shape])
+            
+            # TODO: IMPLEMENT FORWARD PASS
+            
+
 
     
     

@@ -3,11 +3,11 @@ import autograd.numpy as np
 from typing import List, Union, Callable
 from autograd import elementwise_grad as egrad
 # local imports
-from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu
+from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu,layers_types
 from ..optimizers import SGD, SGDMomentum, RMSprop, Adam
 from ..loss import CategoricalCrossEntropy, LogisticLoss,MeanSquaredError
 
-layers_types = Union[Linear,Sigmoid, Tanh, Softmax,Relu]
+
 optimizers_types = Union[SGD, SGDMomentum, RMSprop, Adam]
 
 loss_types = Union[CategoricalCrossEntropy,MeanSquaredError]
