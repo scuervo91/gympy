@@ -1,1 +1,1 @@
-from .networks import NeuralNetwork, DataSet
+from .networks import NeuralNetwork, DataSet, RNN
