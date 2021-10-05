@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field
 import autograd.numpy as np
-from typing import List, Union, Callable, Type
-from autograd import elementwise_grad as egrad
+from typing import List, Union, Type
+#from autograd import elementwise_grad as egrad
+from enum import Enum
 # local imports
 from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu,layers_types
 from ..optimizers import SGD, SGDMomentum, RMSprop, Adam
@@ -11,6 +12,11 @@ from ..loss import CategoricalCrossEntropy, LogisticLoss,MeanSquaredError
 optimizers_types = Union[SGD, SGDMomentum, RMSprop, Adam]
 
 loss_types = Union[CategoricalCrossEntropy,MeanSquaredError]
+
+class RnnEnum(str, Enum):
+    many_one = 'many_one'
+    many_many = 'many_many'
+
 
 def gradients(dz, a):
     m = dz.shape[1]
@@ -43,6 +49,20 @@ class DataSet(BaseModel):
         else:
             n_batches = 1
         self.shuffle_index = np.array_split(shuffle_index, n_batches)
+        
+    def from_timeseries(self, x, len_seq=None):
+        n_batches = x.shape[1] - len_seq
+        X = []
+        Y = []
+        for i in range(n_batches):
+            X.append(x[:,i:i+len_seq])
+            Y.append(x[:,i+len_seq])
+        
+        X = np.array(X)
+        Y = np.expand_dims(np.array(Y),axis=2) 
+        self.x = X
+        self.y = Y
+        self.batch_size = n_batches    
         
 
 class NeuralNetwork(BaseModel):
@@ -238,16 +258,26 @@ class NeuralNetwork(BaseModel):
         
         self.cost = cost_list
         
-        
+
 class RNN(BaseModel):
     n_input: int = Field(..., gt=0)
     n_output: int = Field(..., gt=0)
     n_hidden: int = Field(..., gt=0)
     layer_a: layers_types = Field(None)
     layer_y: layers_types = Field(None)
+    optimizer: optimizers_types = Field(...)
+    loss: loss_types = Field(CategoricalCrossEntropy())
+    cost: List[float] = Field(None)
+    type: RnnEnum = Field(RnnEnum.many_one)
     
-    def __init__(self,n_input:int, n_output:int,n_hidden:int,layer_y:Type, layer_a:Type):
-        super().__init__(n_input=n_input,n_output=n_output,n_hidden=n_hidden)
+    def __init__(self,**kwargs):
+        layer_a = kwargs.pop('layer_a',None)
+        layer_y = kwargs.pop('layer_y',None)
+        super().__init__(**kwargs)
+        
+        n_hidden = kwargs['n_hidden']
+        n_output = kwargs['n_output']
+        n_input = kwargs['n_input']
         
         self.layer_a = layer_a(n_output=n_hidden,n_input=n_input+n_hidden)
         self.layer_y = layer_y(n_output=n_output,n_input=n_hidden)
@@ -276,3 +306,37 @@ class RNN(BaseModel):
             y_output[:,t] = np.squeeze(self.layer_y.forward(a))
             
         return y_output, a_output
+    
+    
+    def train_dataset(self,dataset:DataSet, show=10, n_epochs=50):
+        cost_list = []
+        for epoch in range(n_epochs):
+            for batch in range(dataset.x.shape[1]):
+                x = dataset.x[batch,:,:]
+                y = dataset.y[batch,:,:]
+
+                #Forward
+                y_hat, a = self.forward(x)
+                
+                #Cost
+                if self.type == RnnEnum.many_one:
+                    y_hat = y_hat[:,-1]
+                cost = self.loss.forward(y_hat, y)
+                cost_list.append(cost)
+                
+                dz = self.loss.backward(y_hat,y)
+                
+                for t in range(dataset.x.shape[2]):
+                    dv, dbv =  gradients(dz,a[:,t].reshape(-1,1))
+                    dza = linear_backward(
+                        self.layer_y.weights,
+                        dz,
+                        self.layer_a.derivative()
+                    )
+                    
+                    
+                    
+                    
+                
+                
+                
