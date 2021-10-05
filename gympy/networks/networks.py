@@ -334,6 +334,8 @@ class RNN(BaseModel):
                         self.layer_a.derivative()
                     )
                     
+                # COntinue to code
+                    
                     
                     
                     
