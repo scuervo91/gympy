@@ -196,7 +196,6 @@ class NeuralNetwork(BaseModel):
         cost_list =[]
         dataset.get_shuffle_index()
         self.optimizer.init_vd(self.get_weigths(), self.get_bias())
-        print(type(self.optimizer))
         c = 1
         for epoch in range(n_epochs):
             
@@ -263,35 +262,39 @@ class RNN(BaseModel):
     n_input: int = Field(..., gt=0)
     n_output: int = Field(..., gt=0)
     n_hidden: int = Field(..., gt=0)
-    layer_a: layers_types = Field(None)
-    layer_y: layers_types = Field(None)
+    truncate: int = Field(5, gt=0)
+    layer_hidden_w: layers_types = Field(None)
+    layer_hidden_u: layers_types = Field(None)
+    layer_output: layers_types = Field(None)
     optimizer: optimizers_types = Field(...)
     loss: loss_types = Field(CategoricalCrossEntropy())
     cost: List[float] = Field(None)
     type: RnnEnum = Field(RnnEnum.many_one)
     
     def __init__(self,**kwargs):
-        layer_a = kwargs.pop('layer_a',None)
-        layer_y = kwargs.pop('layer_y',None)
+        layer_hidden = kwargs.pop('layer_hidden',None)
+        layer_output = kwargs.pop('layer_output',None)
         super().__init__(**kwargs)
         
         n_hidden = kwargs['n_hidden']
         n_output = kwargs['n_output']
         n_input = kwargs['n_input']
         
-        self.layer_a = layer_a(n_output=n_hidden,n_input=n_input+n_hidden)
-        self.layer_y = layer_y(n_output=n_output,n_input=n_hidden)
+        self.layer_hidden_w = layer_hidden(n_output=n_hidden,n_input=n_hidden)
+        self.layer_hidden_u = layer_hidden(n_output=n_hidden,n_input=n_input)
+        self.layer_output = layer_output(n_output=n_output,n_input=n_hidden)
         
     
-    #for layer_y: n_output=self.n_output,n_input=self.n_hidden
-    #layer_y: layers_types = Field(...)
+    #for layer_output: n_output=self.n_output,n_input=self.n_hidden
+    #layer_output: layers_types = Field(...)
     
-    #for layer_a: n_output=self.n_hidden,n_input=self.n_input + self.n_hidden
-    #layer_a: layers_types = Field(...)
+    #for layer_hidden: n_output=self.n_hidden,n_input=self.n_input + self.n_hidden
+    #layer_hidden: layers_types = Field(...)
    
     class Config:
         arbitrary_types_allowed = True
         validate_assignment = True
+        
         
     def forward(self,x):
         a = np.zeros((self.n_hidden,1))
@@ -299,19 +302,73 @@ class RNN(BaseModel):
         a_output = np.zeros((self.n_hidden,x.shape[1]))
         for t in range(x.shape[1]):
             x_new_shape = np.expand_dims(x[:,t],axis=1)
-            x_wa = np.concatenate([a,x_new_shape])
             
-            a = self.layer_a.forward(x_wa)
+            zw = self.layer_hidden_u.forward(x_new_shape)
+            zu = self.layer_hidden_w.forward(a)
+            a = zw + zu
             a_output[:,t] = np.squeeze(a)
-            y_output[:,t] = np.squeeze(self.layer_y.forward(a))
+            y_output[:,t] = np.squeeze(self.layer_output.forward(a))
             
         return y_output, a_output
+
+    def get_weigths(self):
+        return [layer.weights for layer in [self.layer_hidden_w,self.layer_hidden_u,self.layer_output]]
+
+    def get_bias(self):
+        return [layer.bias for layer in [self.layer_hidden_w,self.layer_hidden_u,self.layer_output]]
     
+    def get_grads_dw(self):
+        return [layer.dw for layer in [self.layer_hidden_w,self.layer_hidden_u,self.layer_output]]
+
+    def get_grads_db(self):
+        return [layer.db for layer in [self.layer_hidden_w,self.layer_hidden_u,self.layer_output]]
+
+    def assing_weights(self,new_weights):
+        for layer, weights in zip([self.layer_hidden_w,self.layer_hidden_u,self.layer_output],new_weights):
+            layer.weights = weights
+            
+    def assing_bias(self,new_bias):
+        for layer, bias in zip([self.layer_hidden_w,self.layer_hidden_u,self.layer_output],new_bias):
+            layer.bias = bias
+            
+    def get_loss(self,x,y):
+        y_hat, a = self.forward(x)
+        
+        #Cost
+        if self.type == RnnEnum.many_one:
+            y_hat = y_hat[:,-1].reshape(-1,1)
+        print(y_hat, y)
+        return self.loss.forward(y_hat, y)
     
+    def predict(self,x):
+        y_hat, _ = self.forward(x)
+        return y_hat
+    
+    def predict_batch(self,x):
+        y = []
+        for batch in range(x.shape[0]):
+            x_n = x[batch,:,:]
+            #Forward
+            y_hat, _ = self.forward(x_n)
+            if self.type == RnnEnum.many_one:
+                y_hat = y_hat[:,-1].reshape(-1,1)
+            y.append(y_hat)
+        return np.squeeze(y)
+            
+
+
     def train_dataset(self,dataset:DataSet, show=10, n_epochs=50):
         cost_list = []
+        dLdV = np.zeros(self.layer_output.weights.shape)
+        dLdbV = np.zeros(self.layer_output.bias.shape)
+        dLdW = np.zeros(self.layer_hidden_w.weights.shape)
+        dLdbW = np.zeros(self.layer_hidden_w.bias.shape)
+        dLdU = np.zeros(self.layer_hidden_u.weights.shape)
+        dLdbU = np.zeros(self.layer_hidden_u.bias.shape)
+        self.optimizer.init_vd(self.get_weigths(), self.get_bias())
+        c = 0
         for epoch in range(n_epochs):
-            for batch in range(dataset.x.shape[1]):
+            for batch in range(dataset.x.shape[0]):
                 x = dataset.x[batch,:,:]
                 y = dataset.y[batch,:,:]
 
@@ -320,20 +377,52 @@ class RNN(BaseModel):
                 
                 #Cost
                 if self.type == RnnEnum.many_one:
-                    y_hat = y_hat[:,-1]
+                    y_hat = y_hat[:,-1].reshape(-1,1)
                 cost = self.loss.forward(y_hat, y)
                 cost_list.append(cost)
-                
+                if c%50==0:
+                    print(f'{epoch} cost {cost} iter {c}')
                 dz = self.loss.backward(y_hat,y)
-                
                 for t in range(dataset.x.shape[2]):
                     dv, dbv =  gradients(dz,a[:,t].reshape(-1,1))
+                    dLdV += dv
+                    dLdbV += dbv
                     dza = linear_backward(
-                        self.layer_y.weights,
+                        self.layer_output.weights,
                         dz,
-                        self.layer_a.derivative()
+                        self.layer_hidden_w.derivative()
                     )
-                    
+                    for bptt_step in np.arange(max(0, t-self.truncate), t+1)[::-1]:
+                        # print &quot;Backpropagation step t=%d bptt step=%d &quot; % (t, bptt_step)
+                        # Add to gradients at each previous step
+                        dw, dbw = gradients(dza,a[:,bptt_step-1].reshape(-1,1))
+                        du, dbu = gradients(dza,x[:,bptt_step-1].reshape(-1,1))
+                        dLdW += dw# np.outer(dza, a[:,bptt_step-1])   
+                        dLdU += du
+                        dLdbU += dbu
+                        dLdbW += dbw
+                        dza = linear_backward(
+                            self.layer_hidden_w.weights,
+                            dza,
+                            self.layer_hidden_w.derivative()
+                        )
+                
+                self.layer_hidden_w.dw = dLdW
+                self.layer_hidden_w.db = dLdbW
+                self.layer_hidden_u.dw = dLdU
+                self.layer_hidden_u.db = dLdbU
+                self.layer_output.dw = dLdV
+                self.layer_output.db = dLdbV
+                
+                new_weights, new_bias = self.optimizer.update(self.get_weigths(),self.get_grads_dw(),self.get_bias(),self.get_grads_db(),c,epoch)
+                self.assing_weights(new_weights)
+                self.assing_bias(new_bias)
+                
+                c += 1
+            
+            if epoch%show==0:
+                print(f'{epoch} cost {cost} iter {c}')
+
                 # COntinue to code
                     
                     

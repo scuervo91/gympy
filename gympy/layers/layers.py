@@ -15,6 +15,8 @@ class LayersEnum(str, Enum):
 
 
 class Layer(BaseModel):
+    init_weights_random: bool = True
+    init_bias_random: bool = True
     n_input: int = Field(..., gt=0)
     n_output: int = Field(..., gt=0)
     weights: np.ndarray = Field(None)    
@@ -34,7 +36,10 @@ class Layer(BaseModel):
     @validator('weights', always=True)
     def wights_shape(v,values):
         if v is None:
-            return np.random.randn(values['n_output'],values['n_input'])*0.01
+            if values['init_weights_random']:
+                return np.random.randn(values['n_output'],values['n_input'])*0.01
+            else:
+                return np.zeros((values['n_output'],values['n_input']))
         arr = np.array(v, dtype=float)
         assert arr.shape == (values['n_output'],values['n_input'])
         return arr
@@ -42,7 +47,10 @@ class Layer(BaseModel):
     @validator('bias', always=True)
     def bias_shape(v,values):
         if v is None:
-            return np.random.randn(values['n_output'],1)*0.01
+            if values['init_bias_random']:
+                return np.random.randn(values['n_output'],1)*0.01
+            else:
+                return np.zeros((values['n_output'],1))
         arr = np.array(v, dtype=float)
         assert arr.shape == (values['n_output'],1)
         return arr
