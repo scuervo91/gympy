@@ -359,16 +359,17 @@ class RNN(BaseModel):
 
     def train_dataset(self,dataset:DataSet, show=10, n_epochs=50):
         cost_list = []
-        dLdV = np.zeros(self.layer_output.weights.shape)
-        dLdbV = np.zeros(self.layer_output.bias.shape)
-        dLdW = np.zeros(self.layer_hidden_w.weights.shape)
-        dLdbW = np.zeros(self.layer_hidden_w.bias.shape)
-        dLdU = np.zeros(self.layer_hidden_u.weights.shape)
-        dLdbU = np.zeros(self.layer_hidden_u.bias.shape)
+
         self.optimizer.init_vd(self.get_weigths(), self.get_bias())
         c = 0
         for epoch in range(n_epochs):
             for batch in range(dataset.x.shape[0]):
+                dLdV = np.zeros(self.layer_output.weights.shape)
+                dLdbV = np.zeros(self.layer_output.bias.shape)
+                dLdW = np.zeros(self.layer_hidden_w.weights.shape)
+                dLdbW = np.zeros(self.layer_hidden_w.bias.shape)
+                dLdU = np.zeros(self.layer_hidden_u.weights.shape)
+                dLdbU = np.zeros(self.layer_hidden_u.bias.shape)
                 x = dataset.x[batch,:,:]
                 y = dataset.y[batch,:,:]
 
@@ -380,7 +381,7 @@ class RNN(BaseModel):
                     y_hat = y_hat[:,-1].reshape(-1,1)
                 cost = self.loss.forward(y_hat, y)
                 cost_list.append(cost)
-                if c%50==0:
+                if c%150==0:
                     print(f'{epoch} cost {cost} iter {c}')
                 dz = self.loss.backward(y_hat,y)
                 for t in range(dataset.x.shape[2]):
@@ -422,7 +423,7 @@ class RNN(BaseModel):
             
             if epoch%show==0:
                 print(f'{epoch} cost {cost} iter {c}')
-
+        self.cost = cost_list
                 # COntinue to code
                     
                     
