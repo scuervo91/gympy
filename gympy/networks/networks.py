@@ -381,8 +381,6 @@ class RNN(BaseModel):
                     y_hat = y_hat[:,-1].reshape(-1,1)
                 cost = self.loss.forward(y_hat, y)
                 cost_list.append(cost)
-                if c%150==0:
-                    print(f'{epoch} cost {cost} iter {c}')
                 dz = self.loss.backward(y_hat,y)
                 for t in range(dataset.x.shape[2]):
                     dv, dbv =  gradients(dz,a[:,t].reshape(-1,1))
