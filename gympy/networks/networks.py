@@ -361,7 +361,7 @@ class RNN(BaseModel):
         cost_list = []
 
         self.optimizer.init_vd(self.get_weigths(), self.get_bias())
-        c = 0
+        c = 1
         for epoch in range(n_epochs):
             for batch in range(dataset.x.shape[0]):
                 dLdV = np.zeros(self.layer_output.weights.shape)

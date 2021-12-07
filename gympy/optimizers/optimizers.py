@@ -141,6 +141,8 @@ class Adam(BaseModel):
         beta2 = self.beta2
         alpha = self.decay.forward(self.learning_rate,epoch)
         for i, (vdw,sdw,w, gw) in enumerate(zip(self.vdw,self.sdw,weigths, wgrads)):
+            if t == 0:
+                print("t = 0")
             #Momentumn
             new_vdw = beta1 * vdw + (1-beta1)*gw
             new_vdw_corr = new_vdw/(1-np.power(beta1,t))
