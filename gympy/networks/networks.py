@@ -337,7 +337,6 @@ class RNN(BaseModel):
         #Cost
         if self.type == RnnEnum.many_one:
             y_hat = y_hat[:,-1].reshape(-1,1)
-        print(y_hat, y)
         return self.loss.forward(y_hat, y)
     
     def predict(self,x):
@@ -413,7 +412,14 @@ class RNN(BaseModel):
                 self.layer_output.dw = dLdV
                 self.layer_output.db = dLdbV
                 
-                new_weights, new_bias = self.optimizer.update(self.get_weigths(),self.get_grads_dw(),self.get_bias(),self.get_grads_db(),c,epoch)
+                new_weights, new_bias = self.optimizer.update(
+                    self.get_weigths(),
+                    self.get_grads_dw(),
+                    self.get_bias(),
+                    self.get_grads_db(),
+                    c,
+                    epoch
+                )
                 self.assing_weights(new_weights)
                 self.assing_bias(new_bias)
                 
@@ -423,7 +429,24 @@ class RNN(BaseModel):
                 print(f'{epoch} cost {cost} iter {c}')
         self.cost = cost_list
                 # COntinue to code
-                    
+                
+
+class LSTM(BaseModel):
+    n_input: int = Field(..., gt=0)
+    n_output: int = Field(..., gt=0)
+    n_forget: int = Field(..., gt=0)
+    n_update: int = Field(..., gt=0)
+    n_output: int = Field(..., gt=0)
+    n_hidden: int = Field(..., gt=0) #n_hidden would be ct layer
+    truncate: int = Field(5, gt=0)
+    layer_forget: layers_types = Field(None)
+    layer_update: layers_types = Field(None)
+    layer_output: layers_types = Field(None)
+    layer_hidden: layers_types = Field(None)
+    optimizer: optimizers_types = Field(...)
+    loss: loss_types = Field(CategoricalCrossEntropy())
+    cost: List[float] = Field(None)
+    type: RnnEnum = Field(RnnEnum.many_one)                
                     
                     
                     
