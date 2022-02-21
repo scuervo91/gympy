@@ -59,6 +59,9 @@ class Layer(BaseModel):
     class Config:
         arbitrary_types_allowed = True
         validate_assignment = True
+        json_encoders = {
+            np.ndarray: lambda x: x.tolist()
+        }
         
     def linear_forward(self,x):
         w = self.weights
