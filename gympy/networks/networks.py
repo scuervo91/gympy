@@ -578,3 +578,8 @@ class LSTM(BaseModel):
                 cost = self.loss.forward(y_hat, y)
                 cost_list.append(cost)
                 dz = self.loss.backward(y_hat,y)
+                
+                for t in range(dataset.x.shape[2]):
+                    
+                
+                
