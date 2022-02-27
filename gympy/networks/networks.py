@@ -1,10 +1,10 @@
 from pydantic import BaseModel, Field
 import autograd.numpy as np
-from typing import List, Union, Type
+from typing import Callable, List, Union, Type, Any
 #from autograd import elementwise_grad as egrad
 from enum import Enum
 # local imports
-from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu,layers_types
+from ..layers import Linear,Sigmoid, Tanh, Softmax,Relu,layers_types, tanh, sigmoid, softmax, relu, dummy_linear
 from ..optimizers import SGD, SGDMomentum, RMSprop, Adam
 from ..loss import CategoricalCrossEntropy, LogisticLoss,MeanSquaredError
 
@@ -332,7 +332,7 @@ class RNN(BaseModel):
             layer.bias = bias
             
     def get_loss(self,x,y):
-        y_hat, a = self.forward(x)
+        y_hat, _ = self.forward(x)
         
         #Cost
         if self.type == RnnEnum.many_one:
@@ -354,7 +354,6 @@ class RNN(BaseModel):
             y.append(y_hat)
         return np.squeeze(y)
             
-
 
     def train_dataset(self,dataset:DataSet, show=10, n_epochs=50):
         cost_list = []
@@ -434,22 +433,148 @@ class RNN(BaseModel):
 class LSTM(BaseModel):
     n_input: int = Field(..., gt=0)
     n_output: int = Field(..., gt=0)
-    n_forget: int = Field(..., gt=0)
-    n_update: int = Field(..., gt=0)
-    n_output: int = Field(..., gt=0)
-    n_hidden: int = Field(..., gt=0) #n_hidden would be ct layer
     truncate: int = Field(5, gt=0)
-    layer_forget: layers_types = Field(None)
-    layer_update: layers_types = Field(None)
-    layer_output: layers_types = Field(None)
-    layer_hidden: layers_types = Field(None)
+    layer_forget_w: layers_types = Field(None)
+    layer_forget_u: layers_types = Field(None)
+    layer_update_w: layers_types = Field(None)
+    layer_update_u: layers_types = Field(None)
+    layer_output_w: layers_types = Field(None)
+    layer_output_u: layers_types = Field(None)
+    layer_c_w: layers_types = Field(None)
+    layer_c_u: layers_types = Field(None)
+    func_output: Callable[..., Any] = Field(dummy_linear)
+    func_ct_output: Callable[..., Any] = Field(tanh)
     optimizer: optimizers_types = Field(...)
     loss: loss_types = Field(CategoricalCrossEntropy())
     cost: List[float] = Field(None)
-    type: RnnEnum = Field(RnnEnum.many_one)                
-                    
-                    
-                    
+    type: RnnEnum = Field(RnnEnum.many_many)         
+
+    def __init__(self,**kwargs):
+        layer_forget = kwargs.pop('layer_forget',Sigmoid)
+        layer_update = kwargs.pop('layer_update',Sigmoid)
+        layer_output = kwargs.pop('layer_output',Sigmoid)
+        layer_c = kwargs.pop('layer_hidden',Tanh)
+        super().__init__(**kwargs)
+        
+        n_output = kwargs['n_output']
+        n_input = kwargs['n_input']
+        
+        self.layer_forget_w = layer_forget(n_output=n_output,n_input=n_input)
+        self.layer_update_w = layer_update(n_output=n_output,n_input=n_input)
+        self.layer_output_w = layer_output(n_output=n_output,n_input=n_input)
+        self.layer_c_w = layer_c(n_output=n_output,n_input=n_input)
+        self.layer_forget_u = layer_forget(n_output=n_output,n_input=n_output)
+        self.layer_update_u = layer_update(n_output=n_output,n_input=n_output)
+        self.layer_output_u = layer_output(n_output=n_output,n_input=n_output)
+        self.layer_c_u = layer_c(n_output=n_output,n_input=n_output)
+   
+    class Config:
+        arbitrary_types_allowed = True
+        validate_assignment = True    
+        
+    def forward(self,x):
+        # 'a' and 'y_output' has shape (n_output, n_samples+1) to store every timestep.
+        # It is added +1 to store the initial state.
+        a = np.zeros((self.n_output,x.shape[1]+1))
+        c = np.zeros((self.n_output,x.shape[1]+1))
+        y = np.zeros((self.n_output,x.shape[1]))
+        
+        for t in range(x.shape[1]-1):
+            
+            # Reshape input to (n_input,1) for each timestep.
+            x_new_shape = x[:,t].reshape(-1,1)
+            
+            # Calculate Ct
+            c_hat_w = self.layer_c_w.forward(x_new_shape)
+            c_hat_u = self.layer_c_u.forward(a[:,t-1].reshape(-1,1))
+            c_hat = c_hat_w + c_hat_u
+            
+            # Calculate forget gate
+            forget_w = self.layer_forget_w.forward(x_new_shape)
+            forget_u = self.layer_forget_u.forward(a[:,t-1].reshape(-1,1))
+            forget_gate = forget_w + forget_u
+            
+            # Calculate update gate
+            update_w = self.layer_update_w.forward(x_new_shape)
+            update_u = self.layer_update_u.forward(a[:,t-1].reshape(-1,1))
+            update_gate = update_w + update_u
+            
+            # Calculate output gate
+            output_w = self.layer_output_w.forward(x_new_shape)
+            output_u = self.layer_output_u.forward(a[:,t-1].reshape(-1,1))
+            output_gate = output_w + output_u
+            
+            # Calculate new cell state (Ct)
+            c[:,t] = np.squeeze((c_hat * update_gate) + (c[:,t-1].reshape(-1,1) * forget_gate))
+            a[:,t] = np.squeeze(output_gate * self.func_ct_output(c[:,t].reshape(-1,1)))
+            y[:,t] = np.squeeze(self.func_output(a[:,t].reshape(-1,1)))
+            
+        return c, a, y
+    
+    def get_weigths(self):
+        return [layer.weights for layer in [self.layer_forget_w,self.layer_forget_u,self.layer_update_w,self.layer_update_u,self.layer_output_w,self.layer_output_u,self.layer_c_w,self.layer_c_u]]
+
+    def get_bias(self):
+        return [layer.bias for layer in [self.layer_forget_w,self.layer_forget_u,self.layer_update_w,self.layer_update_u,self.layer_output_w,self.layer_output_u,self.layer_c_w,self.layer_c_u]]
+    
+    def get_grads_dw(self):
+        return [layer.dw for layer in [self.layer_forget_w,self.layer_forget_u,self.layer_update_w,self.layer_update_u,self.layer_output_w,self.layer_output_u,self.layer_c_w,self.layer_c_u]]
+    
+    def get_grads_db(self):
+        return [layer.db for layer in [self.layer_forget_w,self.layer_forget_u,self.layer_update_w,self.layer_update_u,self.layer_output_w,self.layer_output_u,self.layer_c_w,self.layer_c_u]]
+
+    def assing_weights(self,new_weights):
+        for layer, weights in zip([self.layer_forget_w,self.layer_forget_u,self.layer_update_w,self.layer_update_u,self.layer_output_w,self.layer_output_u,self.layer_c_w,self.layer_c_u],new_weights):
+            layer.weights = weights
+            
+    def assing_bias(self,new_bias):
+        for layer, bias in zip([self.layer_hidden_w,self.layer_hidden_u,self.layer_output],new_bias):
+            layer.bias = bias
+            
+    def get_loss(self,x,y):
+        _,_,y_hat = self.forward(x)
+        
+        #Cost
+        if self.type == RnnEnum.many_one:
+            y_hat = y_hat[:,-1].reshape(-1,1)
+        return self.loss.forward(y_hat, y)
+
+    def train_dataset(self,dataset:DataSet, show=10, n_epochs=50):
+        cost_list = []
+
+        self.optimizer.init_vd(self.get_weigths(), self.get_bias())
+        c = 1
+        for epoch in range(n_epochs):
+            for batch in range(dataset.x.shape[0]):
+                dLdw_f_w = np.zeros(self.layer_forget_w.weights.shape)
+                dLdW_f_u = np.zeros(self.layer_forget_u.weights.shape)
+                dLdb_f_w = np.zeros(self.layer_forget_w.bias.shape)
+                dLdb_f_u = np.zeros(self.layer_forget_u.bias.shape)
                 
+                dLdw_u_w = np.zeros(self.layer_update_w.weights.shape)
+                dLdw_u_u = np.zeros(self.layer_update_u.weights.shape)
+                dLdb_u_w = np.zeros(self.layer_update_w.bias.shape)
+                dLdb_u_u = np.zeros(self.layer_update_u.bias.shape)
                 
+                dLdw_o_w = np.zeros(self.layer_output_w.weights.shape)
+                dLdw_o_u = np.zeros(self.layer_output_u.weights.shape)
+                dLdb_o_w = np.zeros(self.layer_output_w.bias.shape)
+                dLdb_o_u = np.zeros(self.layer_output_u.bias.shape) 
                 
+                dLdw_c_w = np.zeros(self.layer_c_w.weights.shape)
+                dLdw_c_u = np.zeros(self.layer_c_u.weights.shape)
+                dLdb_c_w = np.zeros(self.layer_c_w.bias.shape)
+                dLdb_c_u = np.zeros(self.layer_c_u.bias.shape)              
+
+                x = dataset.x[batch,:,:]
+                y = dataset.y[batch,:,:]
+
+                #Forward
+                c_hat,a_hat, y_hat = self.forward(x)
+
+                #Cost
+                if self.type == RnnEnum.many_one:
+                    y_hat = y_hat[:,-1].reshape(-1,1)
+                cost = self.loss.forward(y_hat, y)
+                cost_list.append(cost)
+                dz = self.loss.backward(y_hat,y)

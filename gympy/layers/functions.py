@@ -4,6 +4,9 @@ from autograd import elementwise_grad as egrad
 def linear(w,x,b):
     return np.matmul(w,x) + b
 
+def dummy_linear(x):
+    return x
+
 def sigmoid(x):
     return 1 /( 1 + np.exp(-x))
 
