@@ -478,6 +478,18 @@ class LSTM(BaseModel):
         a = np.zeros((self.n_output,x.shape[1]+1))
         c = np.zeros((self.n_output,x.shape[1]+1))
         y = np.zeros((self.n_output,x.shape[1]))
+        output_w_array = np.zeros((self.n_output,x.shape[1]))
+        output_u_array = np.zeros((self.n_output,x.shape[1]))
+        output_array = np.zeros((self.n_output,x.shape[1]))
+        forget_u_array = np.zeros((self.n_output,x.shape[1]))
+        forget_w_array = np.zeros((self.n_output,x.shape[1]))
+        forget_array = np.zeros((self.n_output,x.shape[1]))
+        update_w_array = np.zeros((self.n_output,x.shape[1]))
+        update_u_array = np.zeros((self.n_output,x.shape[1]))
+        update_array = np.zeros((self.n_output,x.shape[1]))
+        c_w_array = np.zeros((self.n_output,x.shape[1]))
+        c_u_array = np.zeros((self.n_output,x.shape[1]))
+        c_array = np.zeros((self.n_output,x.shape[1]))
         
         for t in range(x.shape[1]-1):
             
@@ -489,27 +501,48 @@ class LSTM(BaseModel):
             c_hat_u = self.layer_c_u.forward(a[:,t-1].reshape(-1,1))
             c_hat = c_hat_w + c_hat_u
             
+            c_w_array[:,t] = c_hat_w
+            c_u_array[:,t] = c_hat_u
+            c_array[:,t] = c_hat
+            
             # Calculate forget gate
             forget_w = self.layer_forget_w.forward(x_new_shape)
             forget_u = self.layer_forget_u.forward(a[:,t-1].reshape(-1,1))
             forget_gate = forget_w + forget_u
+            
+            forget_w_array[:,t] = forget_w
+            forget_u_array[:,t] = forget_u
+            forget_array[:,t] = forget_gate
             
             # Calculate update gate
             update_w = self.layer_update_w.forward(x_new_shape)
             update_u = self.layer_update_u.forward(a[:,t-1].reshape(-1,1))
             update_gate = update_w + update_u
             
+            update_w_array[:,t] = update_w
+            update_u_array[:,t] = update_u
+            update_array[:,t] = update_gate
+            
             # Calculate output gate
             output_w = self.layer_output_w.forward(x_new_shape)
             output_u = self.layer_output_u.forward(a[:,t-1].reshape(-1,1))
             output_gate = output_w + output_u
             
+            output_w_array[:,t] = output_w
+            output_u_array[:,t] = output_u
+            output_array[:,t] = output_gate
+            
             # Calculate new cell state (Ct)
             c[:,t] = np.squeeze((c_hat * update_gate) + (c[:,t-1].reshape(-1,1) * forget_gate))
             a[:,t] = np.squeeze(output_gate * self.func_ct_output(c[:,t].reshape(-1,1)))
             y[:,t] = np.squeeze(self.func_output(a[:,t].reshape(-1,1)))
-            
-        return c, a, y
+
+        all_c_array = np.stack((c_array,c_w_array,c_u_array),axis=0)
+        all_output_array = np.stack((output_array,output_w_array,output_u_array),axis=0)
+        all_forget_array = np.stack((forget_array,forget_w_array,forget_u_array),axis=0)
+        all_update_array = np.stack((update_array,update_w_array,update_u_array),axis=0)
+        
+        return c, a, y, all_c_array, all_output_array, all_forget_array, all_update_array
     
     def get_weigths(self):
         return [layer.weights for layer in [self.layer_forget_w,self.layer_forget_u,self.layer_update_w,self.layer_update_u,self.layer_output_w,self.layer_output_u,self.layer_c_w,self.layer_c_u]]
@@ -570,7 +603,7 @@ class LSTM(BaseModel):
                 y = dataset.y[batch,:,:]
 
                 #Forward
-                c_hat,a_hat, y_hat = self.forward(x)
+                c_hat,a_hat, y_hat, all_c_array, all_output_array, all_forget_array, all_update_array = self.forward(x)
 
                 #Cost
                 if self.type == RnnEnum.many_one:
@@ -580,6 +613,11 @@ class LSTM(BaseModel):
                 dz = self.loss.backward(y_hat,y)
                 
                 for t in range(dataset.x.shape[2]):
+                    for bptt_step in np.arange(max(0, t-self.truncate), t+1)[::-1]:
+                        dLDo = dz * self.func_ct_output(c_hat[:,bptt_step].reshape(-1,1))
+                        print(all_output_array.shape)
+                        dw_o_w = dLDo * all_output_array[1,:,bptt_step].reshape(-1,1) * self.layer_output_w.derivative() * x[:,bptt_step].reshape(-1,1)
+                        db_o_w = dLDo * all_output_array[1,:,bptt_step].reshape(-1,1) * self.layer_output_w.derivative()
                     
                 
                 
