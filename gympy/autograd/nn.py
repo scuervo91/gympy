@@ -22,6 +22,9 @@ class Neuron:
             return f.sigmoid()
         else:
             raise ValueError(f'{self.type} is not allowed')
+        
+    def parameters(self):
+        return self.w + [self.b]
             
 class Layer:
     def __init__(self,inputs,outputs,type='linear'):
@@ -33,8 +36,21 @@ class Layer:
         outs = [n(x) for n in self.neurons]
         return outs
     
+    def parameters(self):
+        return [p for neuron in self.neurons for p in neuron.parameters()]
+    
 
-class MLP:
+
+class Module:
+
+    def zero_grad(self):
+        for p in self.parameters():
+            p.grad = 0
+
+    def parameters(self):
+        return []
+    
+class MLP(Module):
     def __init__(self,inputs,layer_sizes, type_layers):
         sz = [inputs] + layer_sizes
         self.layers = [Layer(sz[i],sz[i+1],type=t) for i,t in zip(range(len(layer_sizes)),type_layers)]
@@ -43,5 +59,10 @@ class MLP:
         for layer in self.layers:
             x = layer(x)
         return x
+    
+    def parameters(self):
+        return [l for layer in self.layers for l in layer.parameters()]
+    
+    
 
         
