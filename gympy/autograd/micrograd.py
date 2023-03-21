@@ -43,6 +43,13 @@ class Value:
     def __rmul__(self,other):
         return self * other
     
+    def __radd__(self,other):
+        return self + other
+    
+    def __rsub__(self,other):
+        return self + (-other)
+    
+    
     def __pow__(self,other):
         assert isinstance(other,(int,float))
         out =  Value(self.data ** other,_children=(self,),_op=f'**{other}')
@@ -70,7 +77,7 @@ class Value:
         out = Value(s,(self,),_op='sigmoid')
         
         def _backward():
-            self.grad =+ (s * (1-s)) * out.grad()
+            self.grad =+ (s * (1-s)) * out.grad
         out._backward = _backward
         return out
     
@@ -80,7 +87,7 @@ class Value:
         out = Value(r,(self,),_op='relu')
         
         def _backward():
-            self.grad =+ (out.data > 0) * out.grad()
+            self.grad =+ (out.data > 0) * out.grad
         out._backward = _backward
         return out
     
